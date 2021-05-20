@@ -69,11 +69,6 @@ class HarvesterAPI:
         start = time.time()
         assert len(new_challenge.challenge_hash) == 32
 
-        # Refresh plots to see if there are any new ones
-        if start - self.harvester.last_load_time > self.harvester.plot_load_frequency:
-            await self.harvester.refresh_plots()
-            self.harvester.last_load_time = time.time()
-
         loop = asyncio.get_running_loop()
 
         def blocking_lookup(filename: Path, plot_info: PlotInfo) -> List[Tuple[bytes32, ProofOfSpace]]:
@@ -82,9 +77,7 @@ class HarvesterAPI:
             try:
                 plot_id = plot_info.prover.get_id()
                 sp_challenge_hash = ProofOfSpace.calculate_pos_challenge(
-                    plot_id,
-                    new_challenge.challenge_hash,
-                    new_challenge.sp_hash,
+                    plot_id, new_challenge.challenge_hash, new_challenge.sp_hash
                 )
                 try:
                     quality_strings = plot_info.prover.get_qualities_for_challenge(sp_challenge_hash)
@@ -124,11 +117,9 @@ class HarvesterAPI:
                                 continue
 
                             # Look up local_sk from plot to save locked memory
-                            (
-                                pool_public_key_or_puzzle_hash,
-                                farmer_public_key,
-                                local_master_sk,
-                            ) = parse_plot_info(plot_info.prover.get_memo())
+                            (pool_public_key_or_puzzle_hash, farmer_public_key, local_master_sk) = parse_plot_info(
+                                plot_info.prover.get_memo()
+                            )
                             local_sk = master_sk_to_local_sk(local_master_sk)
                             plot_public_key = ProofOfSpace.generate_plot_public_key(
                                 local_sk.get_g1(), farmer_public_key
@@ -244,11 +235,9 @@ class HarvesterAPI:
             return None
 
         # Look up local_sk from plot to save locked memory
-        (
-            pool_public_key_or_puzzle_hash,
-            farmer_public_key,
-            local_master_sk,
-        ) = parse_plot_info(plot_info.prover.get_memo())
+        (pool_public_key_or_puzzle_hash, farmer_public_key, local_master_sk) = parse_plot_info(
+            plot_info.prover.get_memo()
+        )
         local_sk = master_sk_to_local_sk(local_master_sk)
 
         agg_pk = ProofOfSpace.generate_plot_public_key(local_sk.get_g1(), farmer_public_key)

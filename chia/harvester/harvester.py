@@ -52,18 +52,21 @@ class Harvester:
         self.cached_challenges = []
         self.log = log
         self.state_changed_callback: Optional[Callable] = None
-        self.last_load_time: float = 0
         self.plot_load_frequency = config.get("plot_loading_frequency_seconds", 120)
+
+        self.plot_refresh_task: asyncio.Task
 
     async def _start(self):
         self._refresh_lock = asyncio.Lock()
+        self.plot_refresh_task = asyncio.create_task(self._periodically_refresh_plots_task())
 
     def _close(self):
         self._is_shutdown = True
+        self.plot_refresh_task.cancel()
         self.executor.shutdown(wait=True)
 
     async def _await_closed(self):
-        pass
+        await self.plot_refresh_task
 
     def _set_state_changed_callback(self, callback: Callable):
         self.state_changed_callback = callback
@@ -105,7 +108,7 @@ class Harvester:
         if not locked:
             async with self._refresh_lock:
                 # Avoid double refreshing of plots
-                (changed, self.provers, self.failed_to_open_filenames, self.no_key_filenames,) = load_plots(
+                (changed, self.provers, self.failed_to_open_filenames, self.no_key_filenames) = load_plots(
                     self.provers,
                     self.failed_to_open_filenames,
                     self.farmer_public_keys,
@@ -116,6 +119,15 @@ class Harvester:
                 )
         if changed:
             self._state_changed("plots")
+
+    async def _periodically_refresh_plots_task(self):
+        while True:
+
+            # Don't run plot refresh until farmer handshake was done
+            if self.farmer_public_keys and self.pool_public_keys:
+                await self.refresh_plots()
+
+            await asyncio.sleep(self.plot_load_frequency)
 
     def delete_plot(self, str_path: str):
         path = Path(str_path).resolve()
