@@ -121,13 +121,15 @@ class Harvester:
             self._state_changed("plots")
 
     async def _periodically_refresh_plots_task(self):
-        while True:
-
-            # Don't run plot refresh until farmer handshake was done
-            if self.farmer_public_keys and self.pool_public_keys:
+        if self.farmer_public_keys and self.pool_public_keys:
+            # Don't run plot refresh until farmer handshake is done
+            while True:
                 await self.refresh_plots()
-
-            await asyncio.sleep(self.plot_load_frequency)
+                await asyncio.sleep(self.plot_load_frequency)
+        else
+            # Check frequently for farmer handshake
+            await asyncio.sleep(5)
+            await self._periodically_refresh_plots_task()
 
     def delete_plot(self, str_path: str):
         path = Path(str_path).resolve()
